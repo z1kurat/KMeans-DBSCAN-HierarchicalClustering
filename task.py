@@ -13,8 +13,7 @@ from typing import NoReturn
 # Task 1
 
 class KMeans:
-    def __init__(self, n_clusters: int, init: str = "random",
-                 max_iter: int = 300):
+    def __init__(self, n_clusters: int, init: str = "random", max_iter: int = 300):
         """
         Parameters
         ----------
@@ -36,7 +35,7 @@ class KMeans:
     def euclidean_distances_squared(self, x: np.array, y: np.array) -> float:
         return np.sum((x - y) ** 2)
 
-    def init_start_centroids(self, X: np.array, num_sample, num_feature) -> bool:
+    def init_start_centroids(self, X: np.array, num_sample) -> bool:
         if self.init == "random":
             self.centroids = np.array([np.random.uniform(X.min(axis=0), X.max(axis=0)) for _ in range(self.n_clusters)])
         elif self.init == "sample":
@@ -48,26 +47,20 @@ class KMeans:
             distances: np.array = np.zeros(num_sample)
 
             for _ in range(1, self.n_clusters):
-                distances_sum: float = 0
                 for j in range(num_sample):
                     distances[j] = min(self.euclidean_distances_squared(X[j], centroid) for centroid in self.centroids)
-                    distances_sum += distances[j]
 
-                probabilities = distances / distances_sum
-                self.centroids.append(X[np.random.choice(range(num_sample), 1, p=probabilities)])
+                self.centroids.append(X[np.argmax(distances)])
 
         return True
 
     def reinit_start_centroids(self, X: np.array, centroids_id: int, num_sample: int) -> bool:
         distances: np.array = np.zeros(num_sample)
-        distances_sum: float = 0
 
         for j in range(num_sample):
             distances[j] = min(self.euclidean_distances_squared(X[j], centroid) for i, centroid in enumerate(self.centroids) if i != centroids_id)
-            distances_sum += distances[j]
 
-        probabilities = distances / distances_sum
-        self.centroids[centroids_id] =  X[np.random.choice(range(num_sample), 1, p=probabilities)]
+        self.centroids[centroids_id] = X[np.argmax(distances)]
 
         return True
 
@@ -83,8 +76,8 @@ class KMeans:
             (в sklearn считается, что все функции fit обязаны принимать 
             параметры X и y, даже если y не используется).
         """
-        num_sample, num_feature = X.shape
-        self.init_start_centroids(X, num_sample, num_feature)
+        num_sample = X.shape[0]
+        self.init_start_centroids(X, num_sample)
 
         cluster_assessment: np.array = np.full(num_sample, -1, dtype=int)
 
@@ -104,11 +97,11 @@ class KMeans:
 
             for j in range(self.n_clusters):
                 points_for_j_cluster: np.array = X[cluster_assessment == j]
-                points_cout_for_j_cluster: float = points_for_j_cluster.shape[0]
-                if points_cout_for_j_cluster == 0:
+                points_count_for_j_cluster: float = points_for_j_cluster.shape[0]
+                if points_count_for_j_cluster == 0:
                     self.reinit_start_centroids(X, j, num_sample)
                 else:
-                    self.centroids[j] = np.sum(points_for_j_cluster, axis=0) / points_cout_for_j_cluster
+                    self.centroids[j] = np.mean(points_for_j_cluster, axis=0)
 
             interasions += 1
 
