@@ -37,7 +37,10 @@ class KMeans:
 
     def init_start_centroids(self, X: np.array, num_sample, num_feature) -> bool:
         if self.init == "random":
-            self.centroids: np.array = np.random.randn(self.n_clusters, num_feature)
+            X_min = X.min(axis=0)
+            X_max = X.max(axis=0)
+            self.centroids = np.array([np.random.uniform(X_min, X_max) for _ in range(self.n_clusters)])
+            # self.centroids: np.array = np.random.randn(self.n_clusters, num_feature)
         elif self.init == "sample":
             self.centroids: np.array = X[random.sample(range(num_sample), self.n_clusters),: ]
         elif self.init == "k-means++":
