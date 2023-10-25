@@ -1,5 +1,6 @@
 from sklearn.neighbors import KDTree
 from sklearn.datasets import make_blobs, make_moons
+from scipy.spatial.distance import pdist, squareform
 import numpy as np
 import random
 import matplotlib.pyplot as plt
@@ -242,24 +243,10 @@ class AgglomerativeClustering:
 
     def euclidean_distances_squared(self, x: np.array, y: np.array) -> float:
         return np.sum((x - y) ** 2)
-    
-    def cluster_distance(self, cluster1, cluster2, X):
-        distances = []
-        for i in cluster1:
-            for j in cluster2:
-                distance = self.euclidean_distances_squared(X[i], X[j])
-                distances.append(distance)
-
-        if self.linkage == 'average':
-            return np.mean(distances)
-        elif self.linkage == 'single':
-            return np.min(distances)
-        elif self.linkage == 'complete':
-            return np.max(distances)
 
     def fit_predict(self, X: np.array, y = None) -> np.array:
         """
-        Кластеризует элементы из X, 
+        Кластеризует элементы из X,
         для каждого возвращает индекс соотв. кластера.
         Parameters
         ----------
@@ -267,7 +254,7 @@ class AgglomerativeClustering:
             Набор данных, который необходимо кластеризовать.
         y : Ignored
             Не используемый параметр, аналогично sklearn
-            (в sklearn считается, что все функции fit_predict обязаны принимать 
+            (в sklearn считается, что все функции fit_predict обязаны принимать
             параметры X и y, даже если y не используется).
         Return
         ------
@@ -276,13 +263,17 @@ class AgglomerativeClustering:
             (Для каждой точки из X индекс соотв. кластера).
         """
         clusters = [[i] for i in range(len(X))]
+        cluster_count = len(clusters)
+        distances =  squareform(pdist(X))
+        np.fill_diagonal(distances, np.inf)
 
-        while len(clusters) > self.n_clusters:
-            distances = self.calculate_distances(X, clusters)
-            min_dist_index = np.unravel_index(np.argmin(distances), distances.shape)
+        while cluster_count > self.n_clusters:
+            clusterA, clusterB = np.unravel_index(np.argmin(distances), distances.shape)
+            distances = self.update_distances(distances, clusters, cluster_count, clusterA, clusterB)
 
-            clusters[min_dist_index[0]] += clusters[min_dist_index[1]]
-            del clusters[min_dist_index[1]]
+            clusters[clusterA] += clusters[clusterB]
+            del clusters[clusterB]
+            cluster_count -= 1
 
         labels = np.zeros(len(X), dtype=int)
         for i, cluster in enumerate(clusters):
@@ -290,15 +281,29 @@ class AgglomerativeClustering:
 
         return labels
 
-    def calculate_distances(self, X: np.array, clusters: list) -> np.array:
-        n_clusters = len(clusters)
-        distances = np.zeros((n_clusters, n_clusters))
+    def update_distances(self, distances: np.array, clusters, cluster_count, clusterA: int, clusterB: int):
+        for i in range(cluster_count):
+            if clusterA == i or clusterB == i:
+                continue
 
-        for i in range(n_clusters):
-            distances[i, i] = 1.7976931348623157e+308
-            for j in range(i + 1, n_clusters):
-                dist = self.cluster_distance(clusters[i], clusters[j], X)
-                distances[i, j] = dist
-                distances[j, i] = dist
+            if self.linkage == 'average':
+                clusterA_count = len(clusters[clusterA])
+                clusterB_count = len(clusters[clusterB])
+
+                averageA = clusterA_count * distances[i][clusterA]
+                averageB = clusterB_count * distances[i][clusterB]
+                total_count = clusterA_count + clusterB_count
+
+                distances[i][clusterA] = (averageA + averageB) / (total_count)
+                distances[clusterA][i] = distances[i][clusterA]
+            elif self.linkage == 'single':
+                distances[i][clusterA] = np.minimum(distances[i][clusterA], distances[i][clusterB])
+                distances[clusterA][i] = distances[i][clusterA]
+            elif self.linkage == 'complete':
+                distances[i][clusterA] = np.maximum(distances[i][clusterA], distances[i][clusterB])
+                distances[clusterA][i] = distances[i][clusterA]
+
+        distances = np.delete(distances, clusterB, axis=0)
+        distances = np.delete(distances, clusterB, axis=1)
 
         return distances
