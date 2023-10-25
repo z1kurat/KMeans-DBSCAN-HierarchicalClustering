@@ -95,7 +95,7 @@ class KMeans:
         cluster_changed = True
 
         while cluster_changed and interasions < self.max_iter:
-            cluster_changed = False
+            cluster_changed = True
 
             for i in range(num_sample):
                 distanse_for_i_points: np.array = np.array([self.euclidean_distances_squared(X[i], centroid) for centroid in self.centroids])
