@@ -104,11 +104,11 @@ class KMeans:
 
             for j in range(self.n_clusters):
                 points_for_j_cluster: np.array = X[cluster_assessment[:, 0] == j]
-                points_cout_for_j_cluster = points_for_j_cluster.shape[0]
+                points_cout_for_j_cluster: float = points_for_j_cluster.shape[0]
                 if points_cout_for_j_cluster == 0:
                     self.reinit_start_centroids(X, j, num_sample)
                 else:
-                    self.centroids[j] = np.mean(points_for_j_cluster, axis=0)
+                    self.centroids[j] = np.sum(points_for_j_cluster) / points_cout_for_j_cluster
 
             interasions += 1
 
