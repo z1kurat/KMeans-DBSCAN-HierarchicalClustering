@@ -37,26 +37,23 @@ class KMeans:
 
     def init_start_centroids(self, X: np.array, num_sample, num_feature) -> bool:
         if self.init == "random":
-            X_min = X.min(axis=0)
-            X_max = X.max(axis=0)
-            self.centroids = np.array([np.random.uniform(X_min, X_max) for _ in range(self.n_clusters)])
-            # self.centroids: np.array = np.random.randn(self.n_clusters, num_feature)
+            self.centroids = np.array([np.random.uniform(X.min(axis=0), X.max(axis=0)) for _ in range(self.n_clusters)])
         elif self.init == "sample":
             self.centroids: np.array = X[random.sample(range(num_sample), self.n_clusters),: ]
         elif self.init == "k-means++":
-            self.centroids: np.array = np.empty((self.n_clusters, num_feature), dtype=X.dtype)
-            self.centroids[0] = X[random.sample(range(num_sample), 1)]
+            self.centroids = []
+            self.centroids.append(X[random.sample(range(num_sample), 1)])
 
             distances: np.array = np.zeros(num_sample)
 
-            for i in range(1, self.n_clusters):
+            for _ in range(1, self.n_clusters):
                 distances_sum: float = 0
                 for j in range(num_sample):
-                    distances[j] = min(self.euclidean_distances_squared(X[j], centroid) for centroid in self.centroids[:i])
+                    distances[j] = min(self.euclidean_distances_squared(X[j], centroid) for centroid in self.centroids)
                     distances_sum += distances[j]
 
                 probabilities = distances / distances_sum
-                self.centroids[i] =  X[np.random.choice(range(num_sample), 1, p=probabilities)]
+                self.centroids.append(X[np.random.choice(range(num_sample), 1, p=probabilities)])
 
         return True
 
@@ -88,30 +85,29 @@ class KMeans:
         num_sample, num_feature = X.shape
         self.init_start_centroids(X, num_sample, num_feature)
 
-        cluster_assessment: np.array = np.zeros((num_sample, 2))
-        cluster_assessment[:, 0] = -1
+        cluster_assessment: np.array = np.full(num_sample, -1, dtype=int)
 
         interasions: int = 0
         cluster_changed = True
 
         while cluster_changed and interasions < self.max_iter:
-            cluster_changed = True
+            cluster_changed = False
 
             for i in range(num_sample):
                 distanse_for_i_points: np.array = np.array([self.euclidean_distances_squared(X[i], centroid) for centroid in self.centroids])
                 cluster: int = np.argmin(distanse_for_i_points)
 
-                if cluster_assessment[i, 0] != cluster:
-                    cluster_assessment[i, 0] = cluster
+                if cluster_assessment[i] != cluster:
+                    cluster_assessment[i] = cluster
                     cluster_changed = True
 
             for j in range(self.n_clusters):
-                points_for_j_cluster: np.array = X[cluster_assessment[:, 0] == j]
+                points_for_j_cluster: np.array = X[cluster_assessment == j]
                 points_cout_for_j_cluster: float = points_for_j_cluster.shape[0]
                 if points_cout_for_j_cluster == 0:
                     self.reinit_start_centroids(X, j, num_sample)
                 else:
-                    self.centroids[j] = np.sum(points_for_j_cluster) / points_cout_for_j_cluster
+                    self.centroids[j] = np.sum(points_for_j_cluster, axis=0) / points_cout_for_j_cluster
 
             interasions += 1
 
@@ -190,14 +186,11 @@ class DBScan:
         num_sample = X.shape[0]
 
         tree = KDTree(X, leaf_size=self.leaf_size, metric=self.metric)
-        labels = np.zeros(num_sample, dtype=int)
+        labels = np.full(num_sample, -1, dtype=int)
 
-        point_to_neighbors = [[]] * num_sample
+        point_to_neighbors = tree.query_radius(X, r=self.eps).tolist()
 
-        for i, point in enumerate(X):
-            point_to_neighbors[i] = tree.query_radius([point], r=self.eps)[0].tolist()
-
-        cluster_label = 1
+        cluster_label = 0
         for i in range(num_sample):
             neighbors = point_to_neighbors[i]
             neighbors_count = len(neighbors)
@@ -205,7 +198,7 @@ class DBScan:
             if neighbors_count < self.min_samples:
                 continue
 
-            if labels[i] == 0:
+            if labels[i] == -1:
                 self.expand_cluster(labels, i, cluster_label, point_to_neighbors)
                 cluster_label += 1
 
@@ -220,9 +213,10 @@ class DBScan:
             neighbors = point_to_neighbors[current_index]
 
             for neighbor_index in neighbors:
-                if labels[neighbor_index] == 0:
+                if labels[neighbor_index] == -1:
                     labels[neighbor_index] = cluster_label
-                    stack.append(neighbor_index)
+                    if len(point_to_neighbors[neighbor_index]) >= self.min_samples:
+                        stack.append(neighbor_index)
 
 # Task 3
 
@@ -245,15 +239,23 @@ class AgglomerativeClustering:
         """
         self.n_clusters = n_clusters
         self.linkage = linkage
-    
-    def cluster_distance(self, cluster1, cluster2):
-        if self.linkage == 'average':
-            return np.mean(np.sqrt(np.sum((cluster1[:, np.newaxis] - cluster2)**2, axis=1)))
-        elif self.linkage == 'single':
-            return np.min(np.sqrt(np.sum((cluster1[:, np.newaxis] - cluster2)**2, axis=1)))
-        elif self.linkage == 'complete':
-            return np.max(np.sqrt(np.sum((cluster1[:, np.newaxis] - cluster2)**2, axis=1)))
 
+    def euclidean_distances_squared(self, x: np.array, y: np.array) -> float:
+        return np.sum((x - y) ** 2)
+    
+    def cluster_distance(self, cluster1, cluster2, X):
+        distances = []
+        for i in cluster1:
+            for j in cluster2:
+                distance = self.euclidean_distances_squared(X[i], X[j])
+                distances.append(distance)
+
+        if self.linkage == 'average':
+            return np.mean(distances)
+        elif self.linkage == 'single':
+            return np.min(distances)
+        elif self.linkage == 'complete':
+            return np.max(distances)
 
     def fit_predict(self, X: np.array, y = None) -> np.array:
         """
@@ -280,9 +282,9 @@ class AgglomerativeClustering:
             min_dist_index = np.unravel_index(np.argmin(distances), distances.shape)
 
             clusters[min_dist_index[0]] += clusters[min_dist_index[1]]
-            clusters.remove(min_dist_index[1])
+            del clusters[min_dist_index[1]]
 
-        labels = np.zeros(len(X))
+        labels = np.zeros(len(X), dtype=int)
         for i, cluster in enumerate(clusters):
             labels[cluster] = i
 
@@ -293,10 +295,10 @@ class AgglomerativeClustering:
         distances = np.zeros((n_clusters, n_clusters))
 
         for i in range(n_clusters):
+            distances[i, i] = 1.7976931348623157e+308
             for j in range(i + 1, n_clusters):
-                clusterA = [X[k] for k in clusters[i]]
-                clusterB = [X[k] for k in clusters[j]]
-                dist = self.cluster_distance(clusterA, clusterB)
+                dist = self.cluster_distance(clusters[i], clusters[j], X)
                 distances[i, j] = dist
+                distances[j, i] = dist
 
         return distances
