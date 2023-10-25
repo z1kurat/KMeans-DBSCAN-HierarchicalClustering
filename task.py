@@ -264,7 +264,7 @@ class AgglomerativeClustering:
         """
         clusters = [[i] for i in range(len(X))]
         cluster_count = len(clusters)
-        distances =  squareform(pdist(X))
+        distances = squareform(pdist(X))
         np.fill_diagonal(distances, np.inf)
 
         while cluster_count > self.n_clusters:
