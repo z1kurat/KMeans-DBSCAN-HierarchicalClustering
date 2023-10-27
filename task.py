@@ -1,13 +1,7 @@
 from sklearn.neighbors import KDTree
-from sklearn.datasets import make_blobs, make_moons
 from scipy.spatial.distance import pdist, squareform
 import numpy as np
 import random
-import matplotlib.pyplot as plt
-import matplotlib
-import copy
-import cv2
-from collections import deque
 from typing import NoReturn
 
 # Task 1
@@ -23,7 +17,7 @@ class KMeans:
             Способ инициализации кластеров. Один из трех вариантов:
             1. random --- центроиды кластеров являются случайными точками,
             2. sample --- центроиды кластеров выбираются случайно из  X,
-            3. k-means++ --- центроиды кластеров инициализируются 
+            3. k-means++ --- центроиды кластеров инициализируются
                 при помощи метода K-means++.
         max_iter : int
             Максимальное число итераций для kmeans.
@@ -39,10 +33,10 @@ class KMeans:
         if self.init == "random":
             self.centroids = np.array([np.random.uniform(X.min(axis=0), X.max(axis=0)) for _ in range(self.n_clusters)])
         elif self.init == "sample":
-            self.centroids: np.array = X[random.sample(range(num_sample), self.n_clusters),: ]
+            self.centroids: np.array = X[np.random.choice(num_sample, self.n_clusters)]
         elif self.init == "k-means++":
             self.centroids = []
-            self.centroids.append(X[random.sample(range(num_sample), 1)])
+            self.centroids.append(X[np.random.choice(num_sample)])
 
             distances: np.array = np.zeros(num_sample)
 
@@ -58,7 +52,7 @@ class KMeans:
         distances: np.array = np.zeros(num_sample)
 
         for j in range(num_sample):
-            distances[j] = min(self.euclidean_distances_squared(X[j], centroid) for i, centroid in enumerate(self.centroids) if i != centroids_id)
+            distances[j] = min([self.euclidean_distances_squared(X[j], centroid) for i, centroid in enumerate(self.centroids) if i != centroids_id])
 
         self.centroids[centroids_id] = X[np.argmax(distances)]
 
@@ -73,8 +67,8 @@ class KMeans:
             Набор данных, который необходимо кластеризовать.
         y : Ignored
             Не используемый параметр, аналогично sklearn
-            (в sklearn считается, что все функции fit обязаны принимать 
-            параметры X и y, даже если y не используется).
+            (в sklearn считается, что все функции fit обязаны
+            принимать параметры X и y, даже если y не используется).
         """
         num_sample = X.shape[0]
         self.init_start_centroids(X, num_sample)
@@ -97,9 +91,10 @@ class KMeans:
 
             for j in range(self.n_clusters):
                 points_for_j_cluster: np.array = X[cluster_assessment == j]
-                points_count_for_j_cluster: float = points_for_j_cluster.shape[0]
+                points_count_for_j_cluster: int = points_for_j_cluster.shape[0]
                 if points_count_for_j_cluster == 0:
                     self.reinit_start_centroids(X, j, num_sample)
+                    cluster_changed = True
                 else:
                     self.centroids[j] = np.mean(points_for_j_cluster, axis=0)
 
@@ -110,10 +105,10 @@ class KMeans:
         cluster: int = np.argmin(distanse_for_points)
 
         return cluster
-    
+
     def predict(self, X: np.array) -> np.array:
         """
-        Для каждого элемента из X возвращает номер кластера, 
+        Для каждого элемента из X возвращает номер кластера,
         к которому относится данный элемент.
         Parameters
         ----------
@@ -122,7 +117,7 @@ class KMeans:
         Return
         ------
         labels : np.array
-            Вектор индексов ближайших кластеров 
+            Вектор индексов ближайших кластеров
             (по одному индексу для каждого элемента из X).
         """
         num_sample = X.shape[0]
@@ -132,23 +127,23 @@ class KMeans:
             predicts[i] = self.predict_for_point(X[i])
 
         return predicts
-    
+
 # Task 2
 
 class DBScan:
-    def __init__(self, eps: float = 0.5, min_samples: int = 5, 
+    def __init__(self, eps: float = 0.5, min_samples: int = 5,
                  leaf_size: int = 40, metric: str = "euclidean"):
         """
         Parameters
         ----------
         eps : float, min_samples : int
             Параметры для определения core samples.
-            Core samples --- элементы, у которых в eps-окрестности есть 
+            Core samples --- элементы, у которых в eps-окрестности есть
             хотя бы min_samples других точек.
         metric : str
             Метрика, используемая для вычисления расстояния между двумя точками.
             Один из трех вариантов:
-            1. euclidean 
+            1. euclidean
             2. manhattan
             3. chebyshev
         leaf_size : int
@@ -158,10 +153,10 @@ class DBScan:
         self.min_samples: int = min_samples
         self.leaf_size: int = leaf_size
         self.metric: str = metric
-        
+
     def fit_predict(self, X: np.array, y = None) -> np.array:
         """
-        Кластеризует элементы из X, 
+        Кластеризует элементы из X,
         для каждого возвращает индекс соотв. кластера.
         Parameters
         ----------
@@ -169,7 +164,7 @@ class DBScan:
             Набор данных, который необходимо кластеризовать.
         y : Ignored
             Не используемый параметр, аналогично sklearn
-            (в sklearn считается, что все функции fit_predict обязаны принимать 
+            (в sklearn считается, что все функции fit_predict обязаны принимать
             параметры X и y, даже если y не используется).
         Return
         ------
@@ -220,13 +215,13 @@ class AgglomerativeClustering:
         Parameters
         ----------
         n_clusters : int
-            Количество кластеров, которые необходимо найти (то есть, кластеры 
+            Количество кластеров, которые необходимо найти (то есть, кластеры
             итеративно объединяются, пока их не станет n_clusters)
         linkage : str
             Способ для расчета расстояния между кластерами. Один из 3 вариантов:
-            1. average --- среднее расстояние между всеми парами точек, 
+            1. average --- среднее расстояние между всеми парами точек,
                где одна принадлежит первому кластеру, а другая - второму.
-            2. single --- минимальное из расстояний между всеми парами точек, 
+            2. single --- минимальное из расстояний между всеми парами точек,
                где одна принадлежит первому кластеру, а другая - второму.
             3. complete --- максимальное из расстояний между всеми парами точек,
                где одна принадлежит первому кластеру, а другая - второму.
